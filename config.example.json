@@ -1,0 +1,62 @@
+{
+  "port": 8080,
+  "publicBaseUrl": "https://pluginygbackend.onrender.com",
+  "apiPrefix": "/api/v1",
+  "catalogLanguage": "en",
+  "storage": {
+    "ordersPath": "data/orders.json"
+  },
+  "logging": {
+    "access": true
+  },
+  "assets": {
+    "mode": "node-static",
+    "publicBaseUrl": "https://pluginygbackend.onrender.com",
+    "imagesPath": "public/images",
+    "imagesRoute": "/images"
+  },
+  "products": [
+    {
+      "id": "gun",
+      "type": "consumable",
+      "title": "Gun",
+      "description": "Product - Gun",
+      "imageURI": "test.png",
+      "reward": {
+        "gun": 1
+      },
+      "providers": {
+        "vkbridge": {
+          "enabled": true,
+          "item": "gun",
+          "priceVotes": 5
+        },
+        "ok": {
+          "enabled": true,
+          "item": "gun",
+          "priceOK": 5
+        },
+        "crazygames": {
+          "enabled": true,
+          "sku": "gun",
+          "paymentUrlTemplate": "https://secure.xsolla.com/paystation4/?token={xsollaUserToken}"
+        }
+      }
+    }
+  ],
+  "providers": {
+    "vkbridge": {
+      "enabled": true,
+      "confirmationResponse": "ok"
+    },
+    "ok": {
+      "enabled": true,
+      "secretKey": "",
+      "productHashSecret": ""
+    },
+    "crazygames": {
+      "enabled": true,
+      "webhookSecret": ""
+    }
+  }
+}
