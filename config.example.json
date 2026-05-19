@@ -1,6 +1,6 @@
 {
   "port": 8080,
-  "publicBaseUrl": "https://pluginygbackend.onrender.com",
+  "publicBaseUrl": "https://your-backend-domain.com",
   "apiPrefix": "/api/v1",
   "catalogLanguage": "en",
   "storage": {
@@ -11,7 +11,6 @@
   },
   "assets": {
     "mode": "node-static",
-    "publicBaseUrl": "https://pluginygbackend.onrender.com",
     "imagesPath": "public/images",
     "imagesRoute": "/images"
   },
