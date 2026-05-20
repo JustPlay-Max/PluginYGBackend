@@ -1,12 +1,14 @@
 import { createCrazyGamesProvider } from './crazygames.js';
 import { createOkProvider } from './ok.js';
 import { createVkBridgeProvider } from './vkbridge.js';
+import { createYandexProvider } from './yandex.js';
 import type { BackendConfig, PaymentProduct, ProviderConfig, ProviderProductConfig } from '../../../shared/types.js';
 
 const factories = {
   crazygames: createCrazyGamesProvider,
   ok: createOkProvider,
-  vkbridge: createVkBridgeProvider
+  vkbridge: createVkBridgeProvider,
+  yandex: createYandexProvider
 };
 
 type ProviderFactory = (id: string, providerConfig: ProviderConfig) => PaymentProvider;
@@ -22,7 +24,7 @@ interface PaymentProvider {
   }>;
   startOrder(args: any): any;
   verifyOrder?: (args: any) => Promise<any>;
-  priceText(product: PaymentProduct): string;
+  priceText(product: PaymentProduct, language?: string): string;
   priceValue(product: PaymentProduct): string;
 }
 
@@ -58,13 +60,13 @@ export function createProviderRegistry(config: BackendConfig) {
 
     providerProduct(product: PaymentProduct, platform: string): ProviderProductConfig | null {
       if (!platform) return null;
-      const provider = product.providers?.[platform];
-      return provider && provider.enabled !== false ? provider : null;
+      if (!providers.has(platform)) return null;
+      return providerProduct(product, platform);
     },
 
-    priceText(product: PaymentProduct, platform: string) {
+    priceText(product: PaymentProduct, platform: string, language = '') {
       const provider = providers.get(platform);
-      return provider?.priceText?.(product) || '';
+      return provider?.priceText?.(product, language) || '';
     },
 
     priceValue(product: PaymentProduct, platform: string) {
@@ -72,9 +74,14 @@ export function createProviderRegistry(config: BackendConfig) {
       return provider?.priceValue?.(product) || '';
     },
 
-    priceCurrencyCode(platform: string) {
-      const provider = providers.get(platform);
-      return provider?.currencyCode || '';
+    priceCurrencyCode(product: PaymentProduct, platform: string, language = '') {
+      const providerProductConfig = providerProduct(product, platform);
+      return localizedCurrencyTitle(providerProductConfig, product, language);
+    },
+
+    currencyImageURI(product: PaymentProduct, platform: string) {
+      const providerProductConfig = providerProduct(product, platform);
+      return providerProductConfig?.currencyImageURI || product.currencyImageURI || '';
     }
   };
 }
@@ -91,14 +98,16 @@ function createGenericProvider(id: string): PaymentProvider {
       };
     },
 
-    priceText(product) {
+    priceText(product, language = '') {
       const provider = providerProduct(product, id);
-      return provider?.price || '';
+      const value = productPrice(provider, product);
+      const currencyTitle = localizedCurrencyTitle(provider, product, language);
+      return value !== '' ? priceWithCurrency(value, currencyTitle) : '';
     },
 
     priceValue(product) {
       const provider = providerProduct(product, id);
-      return String(provider?.priceValue || provider?.price || '');
+      return String(productPrice(provider, product));
     }
   };
 }
@@ -106,5 +115,26 @@ function createGenericProvider(id: string): PaymentProvider {
 export function providerProduct(product: PaymentProduct, platform: string): ProviderProductConfig | null {
   if (!platform) return null;
   const provider = product.providers?.[platform];
-  return provider && provider.enabled !== false ? provider : null;
+  if (provider?.enabled === false) return null;
+  return provider || {};
+}
+
+function priceWithCurrency(value: string | number, currencyTitle: string) {
+  return currencyTitle ? `${value} ${currencyTitle}` : String(value);
+}
+
+export function localizedCurrencyTitle(provider: ProviderProductConfig | null, product: PaymentProduct, language = '') {
+  if (isRussian(language)) {
+    return provider?.currencyTitleRU || provider?.currencyTitle || product.currencyTitleRU || product.currencyTitle || '';
+  }
+
+  return provider?.currencyTitle || product.currencyTitle || '';
+}
+
+export function productPrice(provider: ProviderProductConfig | null, product: PaymentProduct) {
+  return provider?.price ?? product.price ?? '';
+}
+
+function isRussian(language: string) {
+  return language.toLowerCase().startsWith('ru');
 }

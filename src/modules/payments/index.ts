@@ -14,7 +14,7 @@ export function createPaymentsModule({ config, orderStore }) {
       const { req, res, url } = context;
 
       if (req.method === 'GET' && url.pathname === `${prefix}/products`) {
-        sendCatalog(res, config, providers, url.searchParams.get('platform') || '');
+        sendCatalog(res, config, providers, url.searchParams.get('platform') || '', url.searchParams.get('language') || '');
         return true;
       }
 
@@ -29,12 +29,12 @@ export function createPaymentsModule({ config, orderStore }) {
       }
 
       if (req.method === 'POST' && url.pathname === `${prefix}/orders/consume`) {
-        await consumeOrder(context, orderStore);
+        await consumeOrder(context, config, orderStore);
         return true;
       }
 
       if (req.method === 'GET' && url.pathname === `${prefix}/orders/status`) {
-        await orderStatus(res, url, orderStore);
+        await orderStatus(res, url, config, orderStore);
         return true;
       }
 
@@ -59,26 +59,26 @@ export function createPaymentsModule({ config, orderStore }) {
   };
 }
 
-function sendCatalog(res, config, providers, platform) {
+function sendCatalog(res, config, providers, platform, language) {
   const products = enabledProducts(config, providers, platform);
 
   sendJson(res, 200, {
     id: products.map(product => product.id),
-    title: products.map(product => product.title || product.id),
-    description: products.map(product => product.description || ''),
+    title: products.map(product => localizedText(product.title, product.titleRU, language) || product.id),
+    description: products.map(product => localizedText(product.description, product.descriptionRU, language)),
     imageURI: products.map(product => resolveAssetUrl(config, product.imageURI)),
-    price: products.map(product => providers.priceText(product, platform)),
+    price: products.map(product => providers.priceText(product, platform, language)),
     priceValue: products.map(product => providers.priceValue(product, platform)),
-    priceCurrencyCode: products.map(() => providers.priceCurrencyCode(platform)),
-    currencyImageURL: products.map(() => ''),
+    priceCurrencyCode: products.map(product => providers.priceCurrencyCode(product, platform, language)),
+    currencyImageURL: products.map(product => resolveOptionalAssetUrl(config, providers.currencyImageURI(product, platform))),
     consumed: products.map(product => product.type !== 'nonConsumable' && product.type !== 'subscription'),
-    language: config.catalogLanguage || 'en'
+    language: language || ''
   });
 }
 
 async function startOrder(context, config, orderStore, providers) {
   const body = await context.readBody();
-  const product = productById(config, body.productId);
+  const product = productById(config, body.productId, body.platform);
   const provider = providers.get(body.platform);
 
   if (!product || !provider || !providers.providerProduct(product, body.platform)) {
@@ -111,8 +111,8 @@ async function startOrder(context, config, orderStore, providers) {
     providerProductId: response.providerProductId,
     paymentUrl: response.paymentUrl || '',
     paymentToken: response.paymentToken || '',
-    title: response.title || product.title || product.id,
-    description: response.description || product.description || '',
+    title: response.title || localizedText(product.title, product.titleRU, body.language) || product.id,
+    description: response.description || localizedText(product.description, product.descriptionRU, body.language),
     price: response.price || '',
     priceValue: response.priceValue || 0,
     immediateSuccess: response.immediateSuccess === true,
@@ -122,7 +122,7 @@ async function startOrder(context, config, orderStore, providers) {
 
 async function verifyOrder(context, config, orderStore, providers) {
   const body = await context.readBody();
-  const product = productById(config, body.productId);
+  const product = productById(config, body.productId, body.platform);
   const provider = providers.get(body.platform);
 
   if (!product || !provider || !providers.providerProduct(product, body.platform)) {
@@ -158,7 +158,8 @@ async function verifyOrder(context, config, orderStore, providers) {
     config,
     product,
     order,
-    body
+    body,
+    orders
   });
 
   order.status = result.success ? 'paid' : 'failed';
@@ -173,17 +174,20 @@ async function verifyOrder(context, config, orderStore, providers) {
     status: order.status,
     productId: order.productId,
     orderId: order.orderId,
+    providerTransactionId: order.providerTransactionId || '',
+    purchaseToken: result.purchaseToken || '',
     message: result.message || ''
   });
 }
 
-async function consumeOrder(context, orderStore) {
+async function consumeOrder(context, config, orderStore) {
   const body = await context.readBody();
+  const product = productById(config, body.productId, body.platform);
   const orders = await orderStore.list();
   const order = findOrder(orders, {
     orderId: body.orderId,
     provider: body.platform,
-    productId: body.productId,
+    productId: product?.id || body.productId,
     userId: body.userId
   });
 
@@ -210,12 +214,14 @@ async function consumeOrder(context, orderStore) {
   });
 }
 
-async function orderStatus(res, url, orderStore) {
+async function orderStatus(res, url, config, orderStore) {
+  const platform = url.searchParams.get('platform') || '';
+  const product = productById(config, url.searchParams.get('productId') || '', platform);
   const orders = await orderStore.list();
   const order = findOrder(orders, {
     orderId: url.searchParams.get('orderId') || '',
-    provider: url.searchParams.get('platform') || '',
-    productId: url.searchParams.get('productId') || '',
+    provider: platform,
+    productId: product?.id || url.searchParams.get('productId') || '',
     userId: url.searchParams.get('userId') || ''
   });
 
@@ -239,10 +245,16 @@ async function orderStatus(res, url, orderStore) {
 async function pendingOrders(res, url, orderStore) {
   const platform = url.searchParams.get('platform') || '';
   const userId = url.searchParams.get('userId') || '';
+
+  if (!platform || !userId) {
+    sendJson(res, 200, { productId: [] });
+    return;
+  }
+
   const orders = await orderStore.list();
   const pending = orders.filter(order =>
     order.provider === platform &&
-    (!userId || order.userId === userId) &&
+    order.userId === userId &&
     (order.status === 'paid' || order.status === 'granted'));
 
   pending.forEach(order => {
@@ -277,8 +289,30 @@ function enabledProducts(config, providers, platform) {
   return (config.products || []).filter(product => providers.providerProduct(product, platform));
 }
 
-function productById(config, id) {
-  return (config.products || []).find(product => product.id === id);
+function productById(config, id, platform = '') {
+  return (config.products || []).find(product => {
+    if (product.id === id) return true;
+    const provider = productProvider(product, platform);
+    return provider && (provider.item === id || provider.sku === id);
+  });
+}
+
+function productProvider(product, platform) {
+  if (!platform) return null;
+  const provider = product.providers?.[platform];
+  return provider && provider.enabled !== false ? provider : null;
+}
+
+function resolveOptionalAssetUrl(config, value) {
+  return value ? resolveAssetUrl(config, value) : '';
+}
+
+function localizedText(value = '', valueRU = '', language = '') {
+  if (language.toLowerCase().startsWith('ru') && valueRU) {
+    return valueRU;
+  }
+
+  return value || '';
 }
 
 function findOrder(orders, query) {

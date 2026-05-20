@@ -2,7 +2,10 @@
   "port": 8080,
   "publicBaseUrl": "https://your-backend-domain.com",
   "apiPrefix": "/api/v1",
-  "catalogLanguage": "en",
+  "productsPath": "products",
+  "currencyTitle": "Coins",
+  "currencyTitleRU": "Монеты",
+  "currencyImageURI": "pluginYG-logo.png",
   "storage": {
     "ordersPath": "data/orders.json"
   },
@@ -14,48 +17,29 @@
     "imagesPath": "public/images",
     "imagesRoute": "/images"
   },
-  "products": [
-    {
-      "id": "gun",
-      "type": "consumable",
-      "title": "Gun",
-      "description": "Product - Gun",
-      "imageURI": "test.png",
-      "reward": {
-        "gun": 1
-      },
-      "providers": {
-        "vkbridge": {
-          "enabled": true,
-          "item": "gun",
-          "priceVotes": 5
-        },
-        "ok": {
-          "enabled": true,
-          "item": "gun",
-          "priceOK": 5
-        },
-        "crazygames": {
-          "enabled": true,
-          "sku": "gun",
-          "paymentUrlTemplate": "https://secure.xsolla.com/paystation4/?token={xsollaUserToken}"
-        }
-      }
-    }
-  ],
+  "products": [],
   "providers": {
+    "yandex": {
+      "enabled": true,
+      "secretKey": ""
+    },
     "vkbridge": {
       "enabled": true,
-      "confirmationResponse": "ok"
+      "confirmationResponse": "ok",
+      "currencyTitle": "Votes",
+      "currencyTitleRU": "Голоса"
     },
     "ok": {
       "enabled": true,
       "secretKey": "",
-      "productHashSecret": ""
+      "productHashSecret": "",
+      "currencyTitle": "OK"
     },
     "crazygames": {
       "enabled": true,
-      "webhookSecret": ""
+      "webhookSecret": "",
+      "currencyTitle": "",
+      "paymentUrlTemplate": "https://secure.xsolla.com/paystation4/?token={xsollaUserToken}"
     }
   }
 }

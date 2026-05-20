@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { sendJson } from '../../../shared/http.js';
-import { providerProduct } from './registry.js';
+import { localizedCurrencyTitle, productPrice, providerProduct } from './registry.js';
 
 export function createOkProvider(id, providerConfig) {
   return {
@@ -15,27 +15,29 @@ export function createOkProvider(id, providerConfig) {
       }
     ],
 
-    startOrder({ product, order }) {
+    startOrder({ product, order, body }) {
       const provider = providerProduct(product, id);
+      const priceValue = Number(productPrice(provider, product) || 0);
+      const language = body.language || '';
       return {
         providerProductId: provider?.item || product.id,
-        title: product.title || product.id,
-        description: product.description || '',
-        price: `${provider?.priceOK || provider?.priceValue || 0} OK`,
-        priceValue: Number(provider?.priceOK || provider?.priceValue || 0),
-        paymentToken: createProductHash(providerConfig, provider?.item || product.id, Number(provider?.priceOK || provider?.priceValue || 0)),
+        title: localizedText(product.title, product.titleRU, language) || product.id,
+        description: localizedText(product.description, product.descriptionRU, language),
+        price: priceWithCurrency(priceValue, localizedCurrencyTitle(provider, product, language)),
+        priceValue,
+        paymentToken: createProductHash(providerConfig, provider?.item || product.id, priceValue),
         message: order.orderId
       };
     },
 
-    priceText(product) {
+    priceText(product, language = '') {
       const provider = providerProduct(product, id);
-      return `${provider?.priceOK || provider?.priceValue || 0} OK`;
+      return priceWithCurrency(productPrice(provider, product), localizedCurrencyTitle(provider, product, language));
     },
 
     priceValue(product) {
       const provider = providerProduct(product, id);
-      return String(provider?.priceOK || provider?.priceValue || 0);
+      return String(productPrice(provider, product));
     },
 
     secretKey: providerConfig.secretKey || ''
@@ -57,7 +59,7 @@ async function okCallback({ context, config, orderStore, provider }) {
   }
 
   const providerData = providerProduct(product, 'ok');
-  const expectedAmount = Number(providerData?.priceOK || providerData?.priceValue || 0);
+  const expectedAmount = Number(productPrice(providerData, product) || 0);
   if (amount !== expectedAmount) {
     sendOkError(context.res, 1001, 'CALLBACK_INVALID_PAYMENT : Invalid payment amount');
     return;
@@ -98,7 +100,10 @@ async function okCallback({ context, config, orderStore, provider }) {
     };
     orders.push(order);
   } else {
-    order.status = 'paid';
+    if (order.status !== 'consumed') {
+      order.status = 'paid';
+    }
+
     order.userId = order.userId || uid;
     order.providerTransactionId = transactionId || order.providerTransactionId || '';
     order.updatedAt = new Date().toISOString();
@@ -154,4 +159,16 @@ function productByProviderId(config, platform, providerId) {
     const provider = providerProduct(product, platform);
     return provider && (provider.item === providerId || provider.sku === providerId || product.id === providerId);
   });
+}
+
+function priceWithCurrency(value, currencyTitle) {
+  return currencyTitle ? `${value} ${currencyTitle}` : String(value || '');
+}
+
+function localizedText(value = '', valueRU = '', language = '') {
+  if (language.toLowerCase().startsWith('ru') && valueRU) {
+    return valueRU;
+  }
+
+  return value || '';
 }

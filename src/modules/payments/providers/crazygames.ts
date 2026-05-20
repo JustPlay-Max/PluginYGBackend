@@ -1,7 +1,7 @@
 import { sendJson } from '../../../shared/http.js';
-import { providerProduct } from './registry.js';
+import { localizedCurrencyTitle, productPrice, providerProduct } from './registry.js';
 
-export function createCrazyGamesProvider(id) {
+export function createCrazyGamesProvider(id, providerConfig) {
   return {
     id,
     currencyCode: 'XSOLLA',
@@ -18,17 +18,20 @@ export function createCrazyGamesProvider(id) {
       const provider = providerProduct(product, id);
       return {
         providerProductId: provider?.sku || product.id,
-        paymentUrl: createPaymentUrl(provider, order, body.providerToken)
+        paymentUrl: createPaymentUrl(provider, providerConfig, order, body.providerToken)
       };
     },
 
-    priceText(product) {
-      return providerProduct(product, id)?.price || '';
+    priceText(product, language = '') {
+      const provider = providerProduct(product, id);
+      const value = productPrice(provider, product);
+      const currencyTitle = localizedCurrencyTitle(provider, product, language);
+      return value !== '' ? priceWithCurrency(value, currencyTitle) : '';
     },
 
     priceValue(product) {
       const provider = providerProduct(product, id);
-      return String(provider?.priceValue || provider?.price || '');
+      return String(productPrice(provider, product));
     }
   };
 }
@@ -48,10 +51,14 @@ async function xsollaWebhook({ context, orderStore }) {
   sendJson(context.res, 200, { success: true });
 }
 
-function createPaymentUrl(provider, order, xsollaUserToken) {
-  const template = provider?.paymentUrlTemplate || '';
+function createPaymentUrl(provider, providerConfig, order, xsollaUserToken) {
+  const template = provider?.paymentUrlTemplate || providerConfig.paymentUrlTemplate || '';
   return template
     .replaceAll('{orderId}', encodeURIComponent(order.orderId))
     .replaceAll('{productId}', encodeURIComponent(order.productId))
     .replaceAll('{xsollaUserToken}', encodeURIComponent(xsollaUserToken || order.providerToken || ''));
+}
+
+function priceWithCurrency(value, currencyTitle) {
+  return currencyTitle ? `${value} ${currencyTitle}` : String(value);
 }

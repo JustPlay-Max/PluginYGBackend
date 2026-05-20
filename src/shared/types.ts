@@ -7,7 +7,10 @@ export interface BackendConfig {
   port?: number;
   publicBaseUrl?: string;
   apiPrefix?: string;
-  catalogLanguage?: string;
+  productsPath?: string;
+  currencyTitle?: string;
+  currencyTitleRU?: string;
+  currencyImageURI?: string;
   storage?: {
     ordersPath?: string;
   };
@@ -31,15 +34,24 @@ export interface ProviderConfig {
   webhookSecret?: string;
   secretKey?: string;
   productHashSecret?: string;
+  paymentUrlTemplate?: string;
+  currencyTitle?: string;
+  currencyTitleRU?: string;
+  currencyImageURI?: string;
 }
 
 export interface PaymentProduct {
   id: string;
   type?: PaymentProductType;
   title?: string;
+  titleRU?: string;
   description?: string;
+  descriptionRU?: string;
+  price?: string | number;
   imageURI?: string;
-  reward?: Record<string, unknown>;
+  currencyTitle?: string;
+  currencyTitleRU?: string;
+  currencyImageURI?: string;
   providers?: Record<string, ProviderProductConfig>;
 }
 
@@ -47,10 +59,10 @@ export interface ProviderProductConfig {
   enabled?: boolean;
   item?: string;
   sku?: string;
-  price?: string;
-  priceValue?: string | number;
-  priceVotes?: number;
-  priceOK?: number;
+  price?: string | number;
+  currencyTitle?: string;
+  currencyTitleRU?: string;
+  currencyImageURI?: string;
   paymentUrlTemplate?: string;
 }
 

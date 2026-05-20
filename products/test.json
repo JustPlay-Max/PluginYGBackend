@@ -1,0 +1,25 @@
+{
+  "id": "test",
+  "type": "consumable",
+  "title": "Test Product",
+  "titleRU": "Тестовый товар",
+  "description": "Test purchase for checking payments",
+  "descriptionRU": "Тестовая покупка для проверки платежей",
+  "price": 5,
+  "imageURI": "test.png",
+  "providers": {
+    "yandex": {
+      "enabled": true
+    },
+    "vkbridge": {
+      "enabled": true,
+	  "price": 10
+    },
+    "ok": {
+      "enabled": true
+    },
+    "crazygames": {
+      "enabled": true
+    }
+  }
+}

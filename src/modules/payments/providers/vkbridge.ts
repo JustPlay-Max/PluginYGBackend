@@ -1,6 +1,6 @@
 import { sendJson } from '../../../shared/http.js';
 import { resolveAssetUrl } from '../../assets/index.js';
-import { providerProduct } from './registry.js';
+import { localizedCurrencyTitle, productPrice, providerProduct } from './registry.js';
 
 export function createVkBridgeProvider(id, providerConfig) {
   return {
@@ -27,22 +27,22 @@ export function createVkBridgeProvider(id, providerConfig) {
       };
     },
 
-    priceText(product) {
-      return `${providerProduct(product, id)?.priceVotes || 0} votes`;
+    priceText(product, language = '') {
+      const provider = providerProduct(product, id);
+      return priceWithCurrency(productPrice(provider, product), localizedCurrencyTitle(provider, product, language));
     },
 
     priceValue(product) {
-      return String(providerProduct(product, id)?.priceVotes || 0);
+      return String(productPrice(providerProduct(product, id), product));
     },
 
     confirmationResponse: providerConfig.confirmationResponse || 'ok'
-};
+  };
 }
 
 async function vkCallback({ context, config, orderStore, provider }) {
   const params = await callbackParams(context);
   const notificationType = params.notification_type || params.type || '';
-  console.log('[PluginYG Backend] VK callback:', JSON.stringify(params));
 
   if (notificationType === 'get_item' || notificationType === 'get_item_test') {
     const product = productByProviderId(config, 'vkbridge', params.item || params.item_id || params.productId);
@@ -63,7 +63,7 @@ async function vkCallback({ context, config, orderStore, provider }) {
         item_id: providerData.item || product.id,
         title: product.title || product.id,
         photo_url: resolveAssetUrl(config, product.imageURI),
-        price: providerData.priceVotes || 1
+        price: Number(productPrice(providerData, product) || 1)
       }
     });
     return;
@@ -80,7 +80,7 @@ async function vkCallback({ context, config, orderStore, provider }) {
         item.provider === 'vkbridge' &&
         (!product || item.productId === product.id) &&
         (!params.user_id || item.userId === String(params.user_id) || !item.userId) &&
-        (item.status === 'pending' || item.providerTransactionId === vkOrderId));
+        (item.status === 'pending' || (vkOrderId && item.providerTransactionId === vkOrderId)));
 
     if (!order) {
       sendJson(context.res, 200, {
@@ -111,7 +111,10 @@ async function vkCallback({ context, config, orderStore, provider }) {
       return;
     }
 
-    order.status = params.status === 'paid' ? 'paid' : 'failed';
+    if (order.status !== 'consumed') {
+      order.status = params.status === 'paid' ? 'paid' : 'failed';
+    }
+
     order.providerTransactionId = vkOrderId;
     order.updatedAt = new Date().toISOString();
     await orderStore.save(orders);
@@ -154,4 +157,8 @@ function appOrderId(orderId) {
   }
 
   return hash || 1;
+}
+
+function priceWithCurrency(value, currencyTitle) {
+  return currencyTitle ? `${value} ${currencyTitle}` : String(value || '');
 }
