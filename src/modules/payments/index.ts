@@ -154,6 +154,19 @@ async function verifyOrder(context, config, orderStore, providers) {
     orders.push(order);
   }
 
+  if (order.status === 'consumed') {
+    sendJson(context.res, 200, {
+      success: false,
+      status: 'consumed',
+      productId: order.productId,
+      orderId: order.orderId,
+      providerTransactionId: order.providerTransactionId || '',
+      purchaseToken: '',
+      message: 'purchase_already_consumed'
+    });
+    return;
+  }
+
   const result = await provider.verifyOrder({
     config,
     product,
@@ -216,20 +229,33 @@ async function consumeOrder(context, config, orderStore) {
 
 async function orderStatus(res, url, config, orderStore) {
   const platform = url.searchParams.get('platform') || '';
-  const product = productById(config, url.searchParams.get('productId') || '', platform);
+  const orderId = url.searchParams.get('orderId') || '';
+  const productId = url.searchParams.get('productId') || '';
+  const userId = url.searchParams.get('userId') || '';
+
+  if (!platform || (!orderId && (!productId || !userId))) {
+    sendJson(res, 200, {
+      success: false,
+      status: 'not_found',
+      productId
+    });
+    return;
+  }
+
+  const product = productById(config, productId, platform);
   const orders = await orderStore.list();
   const order = findOrder(orders, {
-    orderId: url.searchParams.get('orderId') || '',
+    orderId,
     provider: platform,
-    productId: product?.id || url.searchParams.get('productId') || '',
-    userId: url.searchParams.get('userId') || ''
+    productId: product?.id || productId,
+    userId
   });
 
   if (!order) {
     sendJson(res, 200, {
       success: false,
       status: 'not_found',
-      productId: url.searchParams.get('productId') || ''
+      productId
     });
     return;
   }

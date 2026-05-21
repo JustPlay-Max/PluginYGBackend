@@ -20,23 +20,23 @@
   "products": [],
   "providers": {
     "yandex": {
-      "enabled": true,
+      "enabled": false,
       "secretKey": ""
     },
     "vkbridge": {
-      "enabled": true,
+      "enabled": false,
       "confirmationResponse": "ok",
       "currencyTitle": "Votes",
       "currencyTitleRU": "Голоса"
     },
     "ok": {
-      "enabled": true,
+      "enabled": false,
       "secretKey": "",
       "productHashSecret": "",
       "currencyTitle": "OK"
     },
     "crazygames": {
-      "enabled": true,
+      "enabled": false,
       "webhookSecret": "",
       "currencyTitle": "",
       "paymentUrlTemplate": "https://secure.xsolla.com/paystation4/?token={xsollaUserToken}"
