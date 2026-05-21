@@ -24,6 +24,7 @@ interface PaymentProvider {
   }>;
   startOrder(args: any): any;
   verifyOrder?: (args: any) => Promise<any>;
+  restorePurchases?: (args: any) => Promise<any>;
   priceText(product: PaymentProduct, language?: string): string;
   priceValue(product: PaymentProduct): string;
 }

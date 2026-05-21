@@ -28,6 +28,11 @@ export function createPaymentsModule({ config, orderStore }) {
         return true;
       }
 
+      if (req.method === 'POST' && url.pathname === `${prefix}/orders/restore`) {
+        await restorePurchases(context, config, orderStore, providers);
+        return true;
+      }
+
       if (req.method === 'POST' && url.pathname === `${prefix}/orders/consume`) {
         await consumeOrder(context, config, orderStore);
         return true;
@@ -190,6 +195,86 @@ async function verifyOrder(context, config, orderStore, providers) {
     providerTransactionId: order.providerTransactionId || '',
     purchaseToken: result.purchaseToken || '',
     message: result.message || ''
+  });
+}
+
+async function restorePurchases(context, config, orderStore, providers) {
+  const body = await context.readBody();
+  const provider = providers.get(body.platform);
+
+  if (!provider?.restorePurchases) {
+    sendJson(context.res, 400, {
+      success: false,
+      orderId: [],
+      productId: [],
+      purchaseToken: [],
+      message: 'restore_not_supported'
+    });
+    return;
+  }
+
+  const orders = await orderStore.list();
+  const result = await provider.restorePurchases({
+    config,
+    products: config.products || [],
+    body,
+    orders
+  });
+
+  if (!result.success) {
+    sendJson(context.res, 200, {
+      success: false,
+      orderId: [],
+      productId: [],
+      purchaseToken: [],
+      message: result.message || ''
+    });
+    return;
+  }
+
+  const restored = [];
+  for (const purchase of result.purchases || []) {
+    let order = orders.find(item =>
+      item.provider === body.platform &&
+      item.providerTransactionId === purchase.providerTransactionId);
+
+    if (order?.status === 'consumed') {
+      continue;
+    }
+
+    if (!order) {
+      order = createOrder({
+        provider: body.platform,
+        product: purchase.product,
+        userId: body.userId,
+        providerToken: '',
+        status: 'paid'
+      });
+      orders.push(order);
+    }
+
+    order.productId = purchase.productId;
+    order.userId = order.userId || body.userId || '';
+    order.status = 'paid';
+    order.providerTransactionId = purchase.providerTransactionId || order.providerTransactionId || '';
+    order.updatedAt = new Date().toISOString();
+
+    restored.push({
+      ...purchase,
+      orderId: order.orderId
+    });
+  }
+
+  if (restored.length > 0) {
+    await orderStore.save(orders);
+  }
+
+  sendJson(context.res, 200, {
+    success: true,
+    orderId: restored.map(item => item.orderId || ''),
+    productId: restored.map(item => item.productId),
+    purchaseToken: restored.map(item => item.purchaseToken || ''),
+    message: ''
   });
 }
 

@@ -62,6 +62,49 @@ export function createYandexProvider(id, providerConfig) {
       };
     },
 
+    async restorePurchases({ products, body, orders }) {
+      const parsed = verifySignature(body.receipt || body.signature || '', providerConfig.secretKey || '');
+      if (!parsed.success) {
+        return {
+          success: false,
+          message: parsed.message,
+          purchases: []
+        };
+      }
+
+      const purchases = [];
+      for (const purchase of purchasesFromSignature(parsed.data)) {
+        const product = findProductForPurchase(products, purchase, id);
+        const token = purchase?.token || purchase?.purchaseToken || '';
+
+        if (!product || !token) {
+          continue;
+        }
+
+        const duplicate = (orders || []).find(item =>
+          item.provider === id &&
+          item.providerTransactionId === token &&
+          item.status === 'consumed');
+
+        if (duplicate) {
+          continue;
+        }
+
+        purchases.push({
+          product,
+          productId: product.id,
+          providerTransactionId: token,
+          purchaseToken: token
+        });
+      }
+
+      return {
+        success: true,
+        message: '',
+        purchases
+      };
+    },
+
     priceText(product, language = '') {
       const provider = providerProduct(product, id);
       const value = productPrice(provider, product);
@@ -119,14 +162,37 @@ function verifySignature(signature, secretKey) {
 }
 
 function findPurchase(data, product, platform) {
-  const purchases = Array.isArray(data?.data) ? data.data : [data?.data];
+  const purchases = purchasesFromSignature(data);
   const provider = providerProduct(product, platform);
   const productIds = [product.id, provider?.item, provider?.sku].filter(Boolean);
 
   return purchases.find(item => {
-    const productId = item?.product?.id || item?.productID || item?.productId || '';
+    const productId = purchaseProductId(item);
     return productIds.includes(productId);
   });
+}
+
+function purchasesFromSignature(data) {
+  if (!data || !data.data) return [];
+  return Array.isArray(data.data) ? data.data : [data.data];
+}
+
+function findProductForPurchase(products, purchase, platform) {
+  const purchaseId = purchaseProductId(purchase);
+  if (!purchaseId) return null;
+
+  return (products || []).find(product => {
+    const provider = providerProduct(product, platform);
+    if (!provider) return false;
+
+    return product.id === purchaseId ||
+      provider.item === purchaseId ||
+      provider.sku === purchaseId;
+  }) || null;
+}
+
+function purchaseProductId(purchase) {
+  return purchase?.product?.id || purchase?.productID || purchase?.productId || '';
 }
 
 function safeJsonParse(value) {
